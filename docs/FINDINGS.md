@@ -82,11 +82,7 @@ inserting fake spells into the narrative — which a model could reasonably dism
 as noise or formatting artifacts — we **replaced existing, well-known spells with
 invented ones** in 3 scenes each across the series:
 
-| Real Spell | Replaced With | Scenes Replaced |
-|---|---|---|
-| Expelliarmus | Vinculum Umbrae | 3 |
-| Stupefy | Glaciofors | 3 |
-| Accio | Pyroclavis | 3 |
+https://gist.github.com/sfc-gh-bfrank/35e5e729231a86c4d66ab522942abf80
 
 The replacements were placed in high-stakes narrative moments — the graveyard duel
 in Goblet of Fire, the Lightning-Struck Tower in Half-Blood Prince — so the fake
@@ -321,16 +317,7 @@ thing, the way a human reader would.
 
 Claude Opus 4.5 read all 178 chapters and extracted:
 
-| Book | Total Occurrences | Unique Spells (raw) |
-|---|---|---|
-| Philosopher's Stone | 6 | 4 |
-| Chamber of Secrets | 11 | 9 |
-| Prisoner of Azkaban | 40 | 17 |
-| Goblet of Fire | 57 | 32 |
-| Order of the Phoenix | 91 | 49 |
-| Half-Blood Prince | 48 | 31 |
-| Deathly Hallows | 104 | 56 |
-| **Total** | **357** | **131 raw** |
+https://gist.github.com/sfc-gh-bfrank/d9e2e7c5fc1eb56fe3e262b720479b2f
 
 After the enrichment pass: **354 valid spell occurrences, 90 unique canonical spells.**
 (3 rows flagged as non-spells and excluded.)
@@ -362,11 +349,7 @@ the incantation to `"Glaciofors!"` but left "Stunning Spells" in the narration.
 The enrichment model noticed the contradiction and resolved it by trusting the
 effect description over the incantation:
 
-| Occurrence | Effect in Text | Model's Reasoning | Corrected To |
-|---|---|---|---|
-| Dragon keepers (GoF Ch. 19) | "the Stunning Spells shot into the darkness like fiery rockets" | "The effect describes Stunning Spells despite the incantation" | Stupefy |
-| Harry (GoF Ch. 31) | "hit the skrewt's armor and rebounded" | "Likely a typo or variant of the freezing charm Glacius" | Glacius |
-| Harry (DH) | "hit by a jet of red light and slumped sideways, unconscious" | "The red light and unconsciousness effect indicates this is Stupefy" | Stupefy |
+https://gist.github.com/sfc-gh-bfrank/74dc21ec52d30b31bf060c925742d6a5
 
 Vinculum Umbrae and Pyroclavis survived because their surrounding effects were
 ambiguous — "brightly colored objects zoomed out of George's pocket" doesn't map
@@ -384,16 +367,7 @@ Adding one sentence to the enrichment prompt fixed all three:
 > even if the described effect matches a known spell. The incantation as written
 > in the text is authoritative."*
 
-| Spell | v1 (original prompt) | v2 (strengthened prompt) |
-|---|---|---|
-| Pyroclavis (Mrs. Weasley, GoF) | KEPT | KEPT |
-| Glaciofors (dragon keepers, GoF) | → Stupefy | KEPT |
-| Glaciofors (Harry, GoF) | → Glacius | KEPT |
-| Vinculum Umbrae (Harry, GoF) | KEPT | KEPT |
-| Pyroclavis (Flitwick, OotP) | KEPT | KEPT |
-| Vinculum Umbrae (unknown, HBP) | KEPT | KEPT |
-| Glaciofors (Harry, DH) | → Stupefy | KEPT |
-| **Survived** | **4 / 7** | **7 / 7** |
+https://gist.github.com/sfc-gh-bfrank/2bec1b3244e6d9c9ac5c2ec7b52fbb2f
 
 7/7 with the fix. But the stronger prompt had a collateral effect: it also
 prevented the model from correcting `Aquamenti` to `Aguamenti` — a legitimate
@@ -425,14 +399,7 @@ you cannot do both. The right answer depends on what failure mode you can tolera
 
 ### How Our Count Compares
 
-| Source | Unique Spells | Method |
-|---|---|---|
-| Our extraction + enrichment | **90** | Per-chapter extraction, context-aware canonicalization |
-| TikTok experiment — Claude (file upload) | 82 | Single prompt over full text |
-| TikTok experiment — Grok | 87 | Single prompt over full text |
-| Our Part 1 search agent (RAG) | ~22 | Vector search, answered from memory |
-| Wizarding World / Pottermore official | ~200 | Includes non-spoken spells, all media |
-| Fan wikis (HP Lexicon, Fandom) | 150–300+ | All media, video games, Fantastic Beasts |
+https://gist.github.com/sfc-gh-bfrank/1bed78c7bb837c7adfaed350888a3a61
 
 We beat both TikTok results — and ours is trustworthy in a way theirs cannot be,
 because the answer comes from a SQL query over structured data, not a model
@@ -449,15 +416,7 @@ seven novels. Different question, different answer.
 Same question asked to both agents:
 > *"List every unique spell in the Harry Potter series and give me a total count."*
 
-| | HP_SPELL_AGENT (Cortex Search) | HP_SPELL_ANALYST_AGENT (Cortex Analyst) |
-|---|---|---|
-| Architecture | Vector search + RAG | Structured extraction + enrichment + SQL |
-| Search queries generated | `"Expelliarmus Stupefy Avada Kedavra..."` | `SELECT DISTINCT canonical_spell FROM...` |
-| Vinculum Umbrae reported? | No | Yes |
-| Glaciofors reported? | No | Yes |
-| Pyroclavis reported? | No | Yes |
-| Unique spell count | ~22 (from memory) | 90 (from data) |
-| Could answer come from training data alone? | Yes | No |
+https://gist.github.com/sfc-gh-bfrank/8a047d801b89b7473c2ae1fd21c9a2a0
 
 The last row is the test that matters. SQL can't hallucinate column values that
 don't exist. It also can't omit values that do.
@@ -531,23 +490,7 @@ inside the platform, on your data, without moving anything out.
 
 ## Experiment Details
 
-| Parameter | Value |
-|---|---|
-| Books | Harry Potter 1–7 (J.K. Rowling) |
-| Total chapters | 178 |
-| Corpus size | ~6.4MB |
-| Spells replaced | 3 unique × ~3 occurrences each = 7 total |
-| Platform | Snowflake Cortex (trial account, AWS us-east-1, cross-region enabled) |
-| Part 1 — Search agent | Cortex Search + Cortex Agent (`HP_SPELL_AGENT`) |
-| Part 1 — Agent model | claude-sonnet-4-5 |
-| Part 2 — Extraction model | claude-opus-4-5 (via `CORTEX.COMPLETE()`) |
-| Part 2 — Enrichment model | claude-sonnet-4-5 (via `CORTEX.COMPLETE()`, one call per row) |
-| Part 2 — Analyst agent | Cortex Analyst + Semantic View + Cortex Agent (`HP_SPELL_ANALYST_AGENT`) |
-| Part 2 — Agent model | claude-sonnet-4-5 |
-| Spell occurrences extracted (raw) | 357 total, 131 unique |
-| Spell occurrences after enrichment | 354 valid, 90 unique canonical spells |
-| Fake spells surviving enrichment (v1 prompt) | 4 / 7 |
-| Fake spells surviving enrichment (v2 prompt) | 7 / 7 |
+https://gist.github.com/sfc-gh-bfrank/09facdef71c67b3adb1e16dc2e06264a
 
 ---
 
