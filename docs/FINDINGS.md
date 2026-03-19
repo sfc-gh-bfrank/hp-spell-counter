@@ -1,10 +1,10 @@
-# The Model Read the Document. It Still Got It Wrong.
+# I Replaced 3 Spells in Harry Potter. The AI Never Noticed.
 
 *My wife sent me a TikTok of someone testing whether Claude could find spells in the Harry Potter books. The creator had inserted fake spells into the text and asked four LLMs to extract every spell. None of them found the fake ones. His conclusion: the models weren't reading the document. They were answering from memory. My first reaction was: he probably just set it up wrong. I work with Snowflake Cortex every day — a proper enterprise RAG system with a real search index would handle this. So I built it.*
 
 *It didn't handle it. The search agent failed not because retrieval was broken, but because the model constructed its search queries from training data — it searched for spells it already knew existed, so it never retrieved the ones it didn't. Fixing that required rethinking the architecture entirely: structured extraction instead of search, then a second AI pass to canonicalize the messy raw output into something queryable.*
 
-*The TL;DR: you can't just put an LLM on top of your data and call it grounded. The model will answer confidently from what it already knows, cite your documents as sources, and you'll have no way to detect the gap unless you already know the answer. The pipeline matters. The rubric matters. The quality of your structured data matters.*
+*The TL;DR: every tech wave comes with the same promise — buy the right product and the hard parts take care of themselves. AI is no different. But putting an LLM on top of your data doesn't make it grounded any more than putting a BI tool on top of a messy warehouse made it accurate. The model will answer confidently from what it already knows, cite your documents as sources, and you'll have no way to detect the gap unless you already know the answer. The tools are genuinely powerful — but the difference between a demo and a production system is still a data engineer who knows what pipeline to build, and an architect who's thought through the design, the scale, the security, and the cost. Those roles didn't go away. If anything, they just got more important.*
 
 ---
 
@@ -64,10 +64,10 @@ He also proposed the right fix: define a rubric for what a spell is, split the t
 into small chunks, and make individual API calls per chunk to extract spells from
 each one — a structured extraction pipeline rather than a single open-ended question.
 
-That's exactly what we set out to build. But first, we wanted to understand why the
+That's exactly what I set out to build. But first, I wanted to understand why the
 failure happens at the architectural level — not just demonstrate that it does.
 
-We wanted to go further than a ChatGPT file upload. We rebuilt this experiment on a
+I wanted to go further than a ChatGPT file upload. I rebuilt this experiment on a
 real enterprise AI platform, with production retrieval architecture, to understand
 precisely *where* in the pipeline the prior knowledge bias takes hold.
 
@@ -77,9 +77,9 @@ precisely *where* in the pipeline the prior knowledge bias takes hold.
 
 ### Modifying the Source Material
 
-We used all 7 Harry Potter books (~6.4MB, 178 chapters). Rather than crudely
+I used all 7 Harry Potter books (~6.4MB, 178 chapters). Rather than crudely
 inserting fake spells into the narrative — which a model could reasonably dismiss
-as noise or formatting artifacts — we **replaced existing, well-known spells with
+as noise or formatting artifacts — I **replaced existing, well-known spells with
 invented ones** in 3 scenes each across the series:
 
 https://gist.github.com/sfc-gh-bfrank/35e5e729231a86c4d66ab522942abf80
@@ -98,9 +98,9 @@ harder: the model had access to *both* the real and fake spell names in the docu
 > *The door burst open and somebody erupted through it and shouted: '**Vinculum Umbrae**!'*
 > *Harry's body became instantly rigid and immobile... He could not understand how it had happened — Expelliarmus was not a Freezing Charm —*
 
-That second example is telling: the sentence immediately following the replacement
-still references the original spell name. An attentive reader — human or AI —
-would catch the inconsistency. The model did not.
+That second example is worth noting: the sentence immediately following the
+replacement still references the original spell name. The inconsistency is right
+there in the text — a clue hiding in plain sight.
 
 ### The Infrastructure
 
@@ -112,6 +112,9 @@ This was built on Snowflake Cortex — not a toy demo environment:
   search service (the recommended Snowflake architecture for document Q&A)
 - **Cortex Agent** — a persistent agent object with the search service as its only
   tool, configured with an explicit system prompt forbidding use of prior knowledge
+  (not visible in the screenshot — agents are account-level objects, not schema-level)
+- **Semantic View** — visible in the screenshot as `SPELL_OCCURRENCES_SV`, used later
+  in Part 2 for the Cortex Analyst approach
 - **Model** — Claude Sonnet 4.5 via Snowflake Cortex
 
 The agent was instructed, in no uncertain terms:
@@ -173,12 +176,12 @@ Same result. The fake spells did not appear.
 
 ## What's Actually Happening
 
-### The TikTok failure was crude. This one is more dangerous.
+### The TikToker's failure was crude. This one is more dangerous.
 
-The TikTok result was easy to explain: the model didn't read the file. Simple.
+The TikToker's result was easy to explain: the model didn't read the file. Simple.
 Dismiss it as a consumer product limitation and move on.
 
-What we found is harder to dismiss. **The model did use the document.** The agent
+What I found is harder to dismiss. **The model did use the document.** The agent
 made 4-5 search calls per query. It retrieved real passages from the text. It cited
 chapters. By every surface metric, the RAG system was working as designed.
 
@@ -207,15 +210,25 @@ You'd have no way to know it was wrong unless you already knew the answer.
 
 ### Why this matters beyond Harry Potter
 
-Replace "fake spells" with:
-- A new product your company launched after the model's training cutoff
-- A regulatory change your compliance team documented internally
-- A proprietary methodology that exists only in your knowledge base
-- A competitor's product that the model has no training data on
+This matters because the whole point of connecting your documents is that they
+contain something the model doesn't already know. That's the value proposition.
+But it's also the vulnerability: the model constructs its search queries from
+training data that's 6–18 months stale, shaped by whatever consensus existed
+when it last saw the world. The more your documents diverge from that consensus
+— the more *novel* your information actually is — the less likely the model is
+to go looking for it.
 
-The failure mode is identical. The model answers about the things it already knows
-are relevant. Your primary-sourced, carefully curated documents become window
-dressing — consulted to *confirm* the answer, not to *discover* it.
+- A competitor launched a product that threatens your core business — the model still thinks you're the only player
+- A new law went into effect that changes how your industry handles customer data — the model still cites the old framework
+- A major market shift changed customer behavior — the model's training data reflects last year's patterns
+- Your code scanner confidently flags known CVEs but misses a novel vulnerability class because it wasn't in the training data
+- Your engineers built an integration using an API that was released after the training cutoff
+
+In every case, the document contains the right answer. And in every case, the
+model has no reason to search for it — because it doesn't know it should exist.
+Don't expect novel insights from a system that's searching for what it already
+knows. That requires a different architecture — one designed to actually gather
+answers from primary sources, not confirm them.
 
 This is the gap between the promise of AI and the current reality. And it's a gap
 that won't be closed by better prompting or a more expensive model. It requires
@@ -228,7 +241,7 @@ similar to the query*. If you never query for `Vinculum Umbrae`, you'll never ge
 passages containing it. The search index is perfect. The problem is upstream of it,
 in the query construction step.
 
-Discovery of unknown unknowns is not what search is designed for. It's designed for
+**Discovery of unknown unknowns is not what search is designed for.** It's designed for
 retrieval of known concepts. Those are fundamentally different problems, and most
 AI implementations — and most AI marketing — conflates them.
 
@@ -237,8 +250,8 @@ AI implementations — and most AI marketing — conflates them.
 ## Part 2: The Fix — Structured Extraction + Enrichment + Cortex Analyst
 
 The TikTok creator proposed the right solution conceptually: define a rubric, split
-the text into chunks, extract from each one individually. We built that — natively
-inside Snowflake, no external pipeline needed. Then we went one step further.
+the text into chunks, extract from each one individually. I built that — natively
+inside Snowflake, no external pipeline needed. Then I went one step further.
 
 ### The Architecture
 
@@ -282,7 +295,7 @@ Both run entirely inside Snowflake with no external infrastructure.
 ### Why an Enrichment Pass?
 
 Raw extraction is faithful to the text — which means it captures everything the
-text actually contains, including noise. Across 178 chapters we found:
+text actually contains, including noise. Across 178 chapters I found:
 
 - **Case variants**: `STUPEFY`, `Stupefy`, `stupefy` — three rows, one spell
 - **Interrupted casts**: `STUP—`, `STUPEF—` — cut off mid-word during duels
@@ -342,9 +355,9 @@ Glaciofors      — 0/3 SURVIVED (corrected to Stupefy 2x, Glacius 1x)
 
 **4 of 7 survived. The 3 failures are the most interesting result in this project.**
 
-Glaciofors was corrected because we replaced the *incantation word* but left the
+Glaciofors was corrected because I replaced the *incantation word* but left the
 narrator's description of the *effect* intact. The original text read something
-like *`"Stupefy!" and the Stunning Spells shot into the darkness`* — we changed
+like *`"Stupefy!" and the Stunning Spells shot into the darkness`* — I changed
 the incantation to `"Glaciofors!"` but left "Stunning Spells" in the narration.
 The enrichment model noticed the contradiction and resolved it by trusting the
 effect description over the incantation:
@@ -373,7 +386,7 @@ https://gist.github.com/sfc-gh-bfrank/2bec1b3244e6d9c9ac5c2ec7b52fbb2f
 prevented the model from correcting `Aquamenti` to `Aguamenti` — a legitimate
 typo in the source text that v1 had correctly fixed. The model echoed the v2
 rule back almost verbatim: *"Water-conjuring spell, already in correct title
-case form"* — it treated the misspelling as authoritative because we told it to.
+case form"* — it treated the misspelling as authoritative because I told it to.
 
 Here's the thing, though: the model wasn't being dumb. Across all 357 spell
 occurrences, v1 enrichment corrected 32 spell names — every single one of them
@@ -382,33 +395,33 @@ legitimate. `STUBEFY → Stupefy` (Neville's mispronunciation). `STUP— → Stu
 `Relaskio → Relashio`, `Prestego → Protego`, `Alohamora → Alohomora` (typos
 in the source text). It never hallucinated a correction on a real spell. The
 only time it overrode an incantation with a different spell name was Glaciofors
-— because Glaciofors really was Stupefy. We replaced the word but left the
+— because Glaciofors really was Stupefy. I replaced the word but left the
 narrator describing "Stunning Spells" and "red light" and "unconsciousness."
 The model read all of that and made the same inference a human reader would.
 
 A more thorough test would have rewritten the surrounding narration too —
 changing "Stunning Spells shot into the darkness" to something neutral,
 swapping "red light" for "blue light." That would remove the contextual
-evidence the model used to reverse-engineer the original spell. We didn't do
-that, and the model caught us.
+evidence the model used to reverse-engineer the original spell. I didn't do
+that, and the model caught me.
 
 This is the fundamental tension in any AI pipeline over documents: **every rule
 that protects unfamiliar data also protects errors in familiar data.** You can
 tune the prompt to trust the text more or trust the model's knowledge more, but
 you cannot do both. The right answer depends on what failure mode you can tolerate.
 
-### How Our Count Compares
+### How My Count Compares
 
 https://gist.github.com/sfc-gh-bfrank/1bed78c7bb837c7adfaed350888a3a61
 
-We beat both TikTok results — and ours is trustworthy in a way theirs cannot be,
+I beat both TikTok results — and mine is trustworthy in a way theirs cannot be,
 because the answer comes from a SQL query over structured data, not a model
 recalling from memory.
 
-The gap between our 90 and the fan wiki counts (~200+) is intentional: fan wikis
+The gap between my 90 and the fan wiki counts (~200+) is intentional: fan wikis
 include spells mentioned by name but never spoken as incantations, spells from
 video games and expanded universe material, and charm descriptions in dialogue.
-Our rubric was strict — spoken wand incantation, explicitly in the text of the
+My rubric was strict — spoken wand incantation, explicitly in the text of the
 seven novels. Different question, different answer.
 
 ### Side-by-Side Comparison
@@ -459,7 +472,7 @@ Confident. Cited. Plausible. You would have no way to detect it without already
 knowing the correct answer. This is what makes it dangerous in production.
 
 **3. Prompting doesn't fix it.**
-We explicitly instructed the search-based agent not to use prior knowledge. It
+I explicitly instructed the search-based agent not to use prior knowledge. It
 didn't help. The bias operates at the query construction layer, before any
 instructions on the final answer take effect.
 
