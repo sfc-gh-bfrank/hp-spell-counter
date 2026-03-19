@@ -1,0 +1,11 @@
+keys/
+data/
+*.epub
+*.p8
+*.pub
+*.key
+__pycache__/
+.env
+docs/gists/
+docs/MEDIUM_PUBLISHING_GUIDE.md
+.DS_Store
